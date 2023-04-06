@@ -5,7 +5,7 @@ type Store = {
 
 type News = {
   id: number;
-  time_age: string;
+  time_ago: string;
   title: string;
   url: string;
   user: string;
