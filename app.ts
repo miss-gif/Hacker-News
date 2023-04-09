@@ -1,6 +1,6 @@
 interface Store {
+  feeds: NewsFeed[];
   currentPage: number;
-  feeds: NewFeed[];
 }
 
 interface News {
@@ -12,9 +12,9 @@ interface News {
   readonly content: string;
 }
 
-interface NewFeed extends News {
-  readonly comments_count: number;
+interface NewsFeed extends News {
   readonly points: number;
+  readonly comments_count: number;
   read?: boolean;
 }
 
@@ -27,44 +27,55 @@ interface NewsComment extends News {
   readonly level: number;
 }
 
-const container: HTMLElement | null = document.getElementById("root");
-const ajax: XMLHttpRequest = new XMLHttpRequest();
 const NEWS_URL = "https://api.hnpwa.com/v0/news/1.json";
 const CONTENT_URL = "https://api.hnpwa.com/v0/item/@id.json";
+const container: HTMLElement | null = document.getElementById("root");
 const store: Store = {
   currentPage: 1,
   feeds: [],
 };
 
+function applyApiMixins(targetClass: any, baseClasses: any[]): void {
+  baseClasses.forEach((baseClass) => {
+    Object.getOwnPropertyNames(baseClass.prototype).forEach((name) => {
+      const descriptor = Object.getOwnPropertyDescriptor(baseClass.prototype, name);
+
+      if (descriptor) {
+        Object.defineProperty(targetClass.prototype, name, descriptor);
+      }
+    });
+  });
+}
+
 class Api {
-  url: string;
-  ajax: XMLHttpRequest;
+  getRequest<AjaxResponse>(url: string): AjaxResponse {
+    const ajax = new XMLHttpRequest();
+    ajax.open("GET", url, false);
+    ajax.send();
 
-  constructor(url: string) {
-    this.url = url;
-    this.ajax = new XMLHttpRequest();
-  }
-  protected getRequest<AjaxResponse>(): AjaxResponse {
-    this.ajax.open("GET", this.url, false);
-    this.ajax.send();
-
-    return JSON.parse(this.ajax.response);
+    return JSON.parse(ajax.response) as AjaxResponse;
   }
 }
 
-class NewFeedApi extends Api {
-  getData(): NewFeed[] {
-    return this.getRequest<NewFeed[]>();
+class NewsFeedApi {
+  getData(url: string): NewsFeed[] {
+    return this.getRequest<NewsFeed[]>(url);
   }
 }
 
-class NewDetailApi extends Api {
-  getData(): NewsDetail {
-    return this.getRequest<NewsDetail>();
+class NewsDetailApi {
+  getData(url: string): NewsDetail {
+    return this.getRequest<NewsDetail>(url);
   }
 }
 
-function makeFeeds(feeds: NewFeed[]): NewFeed[] {
+interface NewsFeedApi extends Api {}
+interface NewsDetailApi extends Api {}
+
+applyApiMixins(NewsFeedApi, [Api]);
+applyApiMixins(NewsDetailApi, [Api]);
+
+function makeFeeds(feeds: NewsFeed[]): NewsFeed[] {
   for (let i = 0; i < feeds.length; i++) {
     feeds[i].read = false;
   }
@@ -73,18 +84,18 @@ function makeFeeds(feeds: NewFeed[]): NewFeed[] {
 }
 
 function updateView(html: string): void {
-  if (container != null) {
+  if (container) {
     container.innerHTML = html;
   } else {
-    console.error("최상위 컨테이너가 없어 UI 생성 실패");
+    console.error("최상위 컨테이너가 없어 UI를 진행하지 못합니다.");
   }
 }
 
 function newsFeed(): void {
-  const api = new NewFeedApi(NEWS_URL);
-  let newsFeed: NewFeed[] = store.feeds;
-  const newsList = [];
-  let template = `
+  let api = new NewsFeedApi();
+  let newsFeed: NewsFeed[] = store.feeds;
+  const newsList: string[] = [];
+  let template: string = `
     <div class="bg-gray-600 min-h-screen">
       <div class="bg-white text-xl">
         <div class="mx-auto px-4">
@@ -110,7 +121,7 @@ function newsFeed(): void {
   `;
 
   if (newsFeed.length === 0) {
-    newsFeed = store.feeds = makeFeeds(api.getData());
+    newsFeed = store.feeds = makeFeeds(api.getData(NEWS_URL));
   }
 
   for (let i = (store.currentPage - 1) * 10; i < store.currentPage * 10; i++) {
@@ -142,10 +153,34 @@ function newsFeed(): void {
   updateView(template);
 }
 
+function makeComment(comments: NewsComment[]): string {
+  const commentString = [];
+
+  for (let i = 0; i < comments.length; i++) {
+    const comment: NewsComment = comments[i];
+
+    commentString.push(`
+      <div style="padding-left: ${comment.level * 40}px;" class="mt-4">
+        <div class="text-gray-400">
+          <i class="fa fa-sort-up mr-2"></i>
+          <strong>${comment.user}</strong> ${comment.time_ago}
+        </div>
+        <p class="text-gray-700">${comment.content}</p>
+      </div>      
+    `);
+
+    if (comment.comments.length > 0) {
+      commentString.push(makeComment(comment.comments));
+    }
+  }
+
+  return commentString.join("");
+}
+
 function newsDetail(): void {
   const id = location.hash.substr(7);
-  const api = new NewDetailApi(CONTENT_URL.replace("@id", id));
-  const newsContent = api.getData();
+  const api = new NewsDetailApi();
+  const newsDetail: NewsDetail = api.getData(CONTENT_URL.replace("@id", id));
   let template = `
     <div class="bg-gray-600 min-h-screen pb-8">
       <div class="bg-white text-xl">
@@ -164,9 +199,9 @@ function newsDetail(): void {
       </div>
 
       <div class="h-full border rounded-xl bg-white m-6 p-4 ">
-        <h2>${newsContent.title}</h2>
+        <h2>${newsDetail.title}</h2>
         <div class="text-gray-400 h-20">
-          ${newsContent.content}
+          ${newsDetail.content}
         </div>
 
         {{__comments__}}
@@ -182,30 +217,7 @@ function newsDetail(): void {
     }
   }
 
-  updateView(template.replace("{{__comments__}}", makeComment(newsContent.comments)));
-}
-
-function makeComment(comments: NewsComment[]): string {
-  const commentString = [];
-
-  for (let i = 0; i < comments.length; i++) {
-    const comment: NewsComment = comments[i];
-    commentString.push(`
-      <div style="padding-left: ${comment.level * 40}px;" class="mt-4">
-        <div class="text-gray-400">
-          <i class="fa fa-sort-up mr-2"></i>
-          <strong>${comment.user}</strong> ${comment.time_ago}
-        </div>
-        <p class="text-gray-700">${comment.content}</p>
-      </div>      
-    `);
-
-    if (comment.comments.length > 0) {
-      commentString.push(makeComment(comment.comments));
-    }
-  }
-
-  return commentString.join("");
+  updateView(template.replace("{{__comments__}}", makeComment(newsDetail.comments)));
 }
 
 function router(): void {
