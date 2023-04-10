@@ -1,4 +1,4 @@
-import { NewsFeed, NewsDetail } from '../types';
+import { NewsFeed, NewsDetail } from "../types";
 
 export default class Api {
   ajax: XMLHttpRequest;
@@ -10,7 +10,7 @@ export default class Api {
   }
 
   getRequest<AjaxResponse>(): AjaxResponse {
-    this.ajax.open('GET', this.url, false);
+    this.ajax.open("GET", this.url, false);
     this.ajax.send();
 
     return JSON.parse(this.ajax.response) as AjaxResponse;
