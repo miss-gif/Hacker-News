@@ -1,12 +1,11 @@
 {
   "compilerOptions": {
-    "strict": true, // 엄격한 타입 체크를 활성화
-    "target": "ES5", // 컴파일된 자바스크립트 코드의 ECMAScript 버전을 지정
-    "module": "CommonJS", // 모듈 시스템을 지정
-    "alwaysStrict": true, // 엄격 모드로 컴파일된 자바스크립트 코드를 생성
-    "noImplicitAny": true, // 타입을 명시적으로 지정하도록 강제
-    "noImplicitThis": true, // 키워드에 대한 타입을 명시적으로 지정하지 않으면 오류
-    "sourceMap": true, // 소스맵 파일을 생성하여 디버깅을 도와줍니다
-    "downlevelIteration": true // for...of 문을 사용할 때 ES5 이하 버전의 환경에서도 동작
-  }
+    "strict": true,
+    "module": "CommonJS",
+    "sourceMap": true,
+    "lib": [
+      "es6",
+      "dom"
+    ]
+  } 
 }
